@@ -1,7 +1,8 @@
 /* tool_launch <program> <args...>: starts the tool under a seccomp filter that it
    and every child inherit. execveat is refused with EPERM, and so is every execve except the
    one this launcher makes, recognised by a path pointer placed at a random address in a page
-   of its own. All other calls pass. When the filter will not install, the reason is written to
+   of its own that is made read-only before the exec, so the filter authorizes a pathname the
+   program cannot change. All other calls pass. When the filter will not install, the reason is written to
    standard error and nothing starts. */
 #define _GNU_SOURCE
 #include <errno.h>
@@ -40,6 +41,10 @@ int main(int argc, char **argv) {
     char *path = page + (r >> 52) % (4096 - n);
     memcpy(path, argv[1], n);
     unsigned long long a = (unsigned long long)path;
+    if (mprotect(page, 4096, PROT_READ)) {   /* the pointer still passes the filter; the string can no longer change */
+        fprintf(stderr, "tool_launch: the program path could not be frozen: %s\n", strerror(errno));
+        return 111;
+    }
 
     struct sock_filter filter[] = {  /* a jump counts from the next instruction */
         BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, arch)),

@@ -74,7 +74,7 @@ Anything on standard error is ignored.
 ## Blocks
 
 The shipped server holds a small block (20 inputs). The flow runs this counter on every block it
-signs off, and those stay inside these bounds: at most 256 primary inputs, 4096 gates and 128
+signs off, and those stay inside these bounds: at most 236 primary inputs, 3196 gates and 127
 outputs at every checkpoint, and ECO lines from at most 14 revisions, 43 lines in all. Blocks
 are datapath slices: adders and subtracters feeding result muxes, magnitude and equality
 comparators, parity and zero trees, priority encoders.

@@ -38,9 +38,11 @@ SIZES = {
     # W1: ALU operand width, W2: comparator width, R: request lines, S: spare inputs,
     # page: lines per netlist page, epage: lines per ECO page
     "sample": {"W1": 4, "W2": 3, "R": 3, "S": 1, "page": 40, "epage": 4},
-    "hidden": {"W1": 56, "W2": 40, "R": 16, "S": 2, "page": 160, "epage": 4, "extra": True},
+    "hidden": {"W1": 100, "W2": 8, "R": 16, "S": 2, "page": 160, "epage": 4, "extra": True},
 }
-# The README's ECO bounds, which the held-back block reaches.
+# The README's bounds, which the held-back block reaches: primary inputs, and gates and outputs at
+# one checkpoint, then ECO revisions and ECO lines.
+MAX_INPUTS, MAX_GATES, MAX_OUTPUTS = 236, 3196, 127
 MAX_REVS, MAX_ECO = 14, 43
 
 
@@ -546,15 +548,16 @@ def make(seed, kind):
     final = max(e[0] for e in eco)
     checkpoints = [0, mid] + meta.get("extra_ckpts", [final])
     assert checkpoints[-1] == final
-    assert len({e[0] for e in eco}) <= MAX_REVS and len(eco_lines) <= MAX_ECO
 
     doc = {"kind": kind, "seed": seed, "inputs": len(inputs), "gates": len(gl),
            "eco_lines": len(eco_lines), "checkpoints": checkpoints,
            "pages": pages(net_lines, P["page"]), "eco_pages": pages(eco_lines, P["epage"])}
 
     counts = {}
+    sizes = []
     for R in checkpoints:
         gates, outs = state_at(block, eco, R)
+        sizes.append((len(gates), len(outs)))
         counts[R] = counts_bdd(block, gates, outs)
         if len(inputs) <= 22:
             tt = counts_truth_table(block, gates, outs)
@@ -576,6 +579,12 @@ def make(seed, kind):
         checks[f"cmp_err is 0 at {R}"] = counts[R]["cmp_err"] == 0
     for P0, R in itertools.pairwise(checkpoints):
         checks[f"checkpoint {R} differs from {P0}"] = counts[R] != counts[P0]
+    bounds = (len(inputs), max(g for g, _ in sizes), max(o for _, o in sizes),
+              len({e[0] for e in eco}), len(eco_lines))
+    want = (MAX_INPUTS, MAX_GATES, MAX_OUTPUTS, MAX_REVS, MAX_ECO)
+    checks["inside the README bounds"] = all(x <= y for x, y in zip(bounds, want))
+    if P.get("extra"):
+        checks["the held-back block reaches every README bound"] = bounds == want
     return doc, counts, checks, meta, base_gates
 
 
