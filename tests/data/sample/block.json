@@ -2,7 +2,7 @@
  "kind": "sample",
  "seed": 12,
  "inputs": 20,
- "gates": 131,
+ "gates": 132,
  "eco_lines": 8,
  "checkpoints": [
   0,
@@ -41,6 +41,7 @@
    "OUTPUT mx[2] n34987",
    "OUTPUT pidx[0] n87273",
    "OUTPUT res[2] n27249",
+   "OUTPUT cmp_err n15474",
    "OUTPUT eq n55456",
    "OUTPUT mx[1] n17494",
    "OUTPUT pvalid n53370",
@@ -49,10 +50,10 @@
    "OUTPUT lt n49035",
    "GATE n53496 XNOR a[3] b[3]",
    "GATE n84808 NOT n88633",
-   "GATE n91323 XOR a[1] b[1]",
-   "GATE n87176 XOR a[0] b[0]"
+   "GATE n91323 XOR a[1] b[1]"
   ],
   [
+   "GATE n87176 XOR a[0] b[0]",
    "GATE n34079 OR n89312 n96201",
    "GATE n64939 NOT a[3]",
    "GATE n37247 OR a[1] n48621",
@@ -91,10 +92,11 @@
    "GATE n47706 NOT n87978",
    "GATE n85332 XOR a[1] b[1]",
    "GATE n69285 NOT n29058",
-   "GATE n55456 NOT n5971",
-   "GATE n90231 AND n14935 c[1]"
+   "GATE n15474 AND n49035 n55456"
   ],
   [
+   "GATE n55456 NOT n5971",
+   "GATE n90231 AND n14935 c[1]",
    "GATE n29820 XNOR n61912 n25803",
    "GATE n57381 OR n44939 a[0]",
    "GATE n60720 XOR a[2] n49662",
@@ -132,11 +134,11 @@
    "GATE n84483 AND n57381 n37247",
    "GATE n81856 XOR b[0] a[0]",
    "GATE n63530 NOT d[2]",
-   "GATE n94078 AND n46544 n54048",
-   "GATE n89312 NOT n91454",
-   "GATE n58052 MUX op[0] n63490 n36160"
+   "GATE n94078 AND n46544 n54048"
   ],
   [
+   "GATE n89312 NOT n91454",
+   "GATE n58052 MUX op[0] n63490 n36160",
    "GATE n64048 XOR n49274 n60720",
    "GATE n18703 NOT n15749",
    "GATE n10779 NOT n8710",
@@ -174,11 +176,11 @@
    "GATE n67485 NOT n7730",
    "GATE n25803 NOT n48735",
    "GATE n49662 NOT b[2]",
-   "GATE n64618 AND b[3] n64939",
-   "GATE n91454 NAND n47706 n67485",
-   "GATE n63490 XOR n88575 n67485"
+   "GATE n64618 AND b[3] n64939"
   ],
   [
+   "GATE n91454 NAND n47706 n67485",
+   "GATE n63490 XOR n88575 n67485",
    "GATE n4572 MUX op[0] n84808 n81856",
    "GATE n8967 NOT n12449",
    "GATE n88575 NOT n53496",

@@ -14,7 +14,10 @@ scrambled, gate fan-in order is scrambled, and net names are synthesis-style num
 Then a set of ECO revisions: a gate in a chain redefined, the same gate redefined again at a later
 revision, an output added on new gates, an output dropped and re-added on another net. ECO lines
 are delivered in scrambled order across pages. The checkpoints are revision 0 (the netlist as
-synthesized), one revision in the middle and the final revision.
+synthesized), one revision in the middle and the final revision. The held-back block adds eight
+more orders (gate types changed, a gate changed again later, check outputs added on new gates, an
+output dropped and then re-added by an order of its own) and checkpoints at two adjacent
+revisions and at that re-add. Every block also carries cmp_err = eq AND lt, which can never be 1.
 
 Counts are computed here with a small BDD package in the bit-sliced variable order the generator
 knows from construction (a0 b0 a1 b1 ... then c/d the same way, then the rest), and for small
@@ -24,6 +27,7 @@ blocks cross-checked by a full truth table done bit-parallel on Python integers.
 writes DIR/block.json (what the server serves) and DIR/counts.txt (revision output count).
 """
 import argparse
+import itertools
 import json
 import os
 import random
@@ -34,8 +38,10 @@ SIZES = {
     # W1: ALU operand width, W2: comparator width, R: request lines, S: spare inputs,
     # page: lines per netlist page, epage: lines per ECO page
     "sample": {"W1": 4, "W2": 3, "R": 3, "S": 1, "page": 40, "epage": 4},
-    "hidden": {"W1": 56, "W2": 40, "R": 16, "S": 2, "page": 160, "epage": 4},
+    "hidden": {"W1": 56, "W2": 40, "R": 16, "S": 2, "page": 160, "epage": 4, "extra": True},
 }
+# The README's ECO bounds, which the held-back block reaches.
+MAX_REVS, MAX_ECO = 14, 43
 
 
 class Block:
@@ -235,8 +241,42 @@ def build(seed, kind):
     le = eco_gate(rE, "OR", lt, eq)
     eco.append([rE, "OUTPUT", "lt", le])
 
-    meta = {"revs": {"A": rA, "B": rB, "C": rC, "D": rD, "E": rE, "F": rF}, "target": target, "t2": t2}
+    meta = {"revs": {"A": rA, "B": rB, "C": rC, "D": rD, "E": rE, "F": rF}, "target": target, "t2": t2,
+            "cmp": (eq, lt)}
+    if P.get("extra"):
+        meta["extra_ckpts"] = extra_orders(B, eco, rng, eco_gate, cone(B, eq) | cone(B, lt) | {target, t2})
     return B, eco, meta, base_gate_count
+
+
+def extra_orders(B, eco, rng, eco_gate, keep):
+    """Eight more orders above revision 30. Each changes the type of three gates (a gate may be
+    changed again by a later order) and adds a check output on a new XOR of two output nets; the
+    fourth drops an output instead of adding one and the fifth only adds that output back. The
+    comparator cones behind cmp_err, and the gates the base orders touch, are left alone."""
+    while True:
+        e = sorted(rng.sample(range(31, 60), 7))
+        if e[1] + 1 not in e and e[1] + 1 < e[2]:
+            break
+    e = e[:2] + [e[1] + 1] + e[2:]
+    pool = [n for n in B.made if B.gates[n][0] in TWO and n not in keep]
+    cur = {}
+    outs = dict(B.outputs)
+    names = [o for o in outs if o not in ("lt",)]
+    dropped = rng.choice([o for o in names if o.startswith(("pidx", "par", "zero", "mx"))])
+    for k, rev in enumerate(e):
+        if k == 4:
+            eco.append([rev, "OUTPUT", dropped, outs[dropped]])
+            continue
+        for n in rng.sample(pool, 3):
+            op = rng.choice([o for o in TWO if o != cur.get(n, B.gates[n][0])])
+            cur[n] = op
+            eco.append([rev, "GATE", n, op] + B.gates[n][1])
+        if k == 3:
+            eco.append([rev, "DROP", dropped])
+            continue
+        x, y = rng.sample(sorted({outs[o] for o in names if o != dropped}), 2)
+        eco.append([rev, "OUTPUT", f"chk[{k}]", eco_gate(rev, "XOR", x, y)])
+    return [e[1], e[2], e[3], e[4], e[7]]
 
 
 def cone(B, net, memo=None):
@@ -464,6 +504,16 @@ def make(seed, kind):
     rng.shuffle(outputs)
     gl = [[n] + B.gates[n] for n in B.made]
     rng.shuffle(gl)
+    # cmp_err = eq AND lt, never 1. Placed with its own generator so nothing else moves.
+    zr = random.Random(seed * 104729 + 7)
+    while True:
+        zn = f"n{zr.randrange(1000, 99999)}"
+        if zn not in B.used:
+            break
+    zin = list(meta["cmp"])
+    zr.shuffle(zin)
+    gl.insert(zr.randrange(len(gl) + 1), [zn, "AND", zin])
+    outputs.insert(zr.randrange(len(outputs) + 1), ["cmp_err", zn])
     block = {"inputs": inputs, "outputs": outputs, "gates": {g[0]: [g[1], g[2]] for g in gl}}
     net_lines = [f"INPUT {nm}" for nm in inputs]
     net_lines += [f"OUTPUT {o} {n}" for o, n in outputs]
@@ -494,7 +544,9 @@ def make(seed, kind):
         return None
     mid = rng.choice(mids)
     final = max(e[0] for e in eco)
-    checkpoints = [0, mid, final]
+    checkpoints = [0, mid] + meta.get("extra_ckpts", [final])
+    assert checkpoints[-1] == final
+    assert len({e[0] for e in eco}) <= MAX_REVS and len(eco_lines) <= MAX_ECO
 
     doc = {"kind": kind, "seed": seed, "inputs": len(inputs), "gates": len(gl),
            "eco_lines": len(eco_lines), "checkpoints": checkpoints,
@@ -520,7 +572,10 @@ def make(seed, kind):
         "first redefinition moves a count at the middle checkpoint":
             {k: v for k, v in counts[mid].items() if k in counts[0]} != {k: v for k, v in counts[0].items() if k in counts[mid]},
     }
-    # The two redefinitions of the chain gate must each give different counts.
+    for R in checkpoints:
+        checks[f"cmp_err is 0 at {R}"] = counts[R]["cmp_err"] == 0
+    for P0, R in itertools.pairwise(checkpoints):
+        checks[f"checkpoint {R} differs from {P0}"] = counts[R] != counts[P0]
     return doc, counts, checks, meta, base_gates
 
 

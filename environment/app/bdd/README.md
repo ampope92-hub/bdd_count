@@ -74,10 +74,10 @@ Anything on standard error is ignored.
 ## Blocks
 
 The shipped server holds a small block (20 inputs). The flow runs this counter on every block it
-signs off, and those stay inside these bounds at every checkpoint: at most 256 primary inputs,
-4096 gates, 128 outputs, 16 revisions and 64 ECO lines. Blocks are datapath slices: adders and
-subtracters feeding result muxes, magnitude and equality comparators, parity and zero trees,
-priority encoders.
+signs off, and those stay inside these bounds: at most 256 primary inputs, 4096 gates and 128
+outputs at every checkpoint, and ECO lines from at most 14 revisions, 43 lines in all. Blocks
+are datapath slices: adders and subtracters feeding result muxes, magnitude and equality
+comparators, parity and zero trees, priority encoders.
 
 On the sign-off hosts a run gets 2 cores, 90 seconds of wall time and 4 GiB of address space, and
 it cannot start other programs.
