@@ -1,11 +1,5 @@
-The summariser in /app is wrong. It runs, but the report it writes does not match what
-downstream expects.
+Our sign-off flow needs a counter that takes a mapped block off the synthesis server and says, for every primary output, how many input assignments drive it to 1. The server exports the gate-level net list and the ECO lines filed against the block over TCP (address in `SYNTH_HOST` and `SYNTH_PORT`). How the export port talks and what its lines mean is written up in `/app/bdd/README.md`, along with the size of the blocks the flow signs off. For every checkpoint revision the server announces, print one line `<revision> <output> <count>` for each output present at that revision, with the count as an exact decimal.
 
-Rebuild /app/out/report.json for the files under /app/data. The report is a JSON object with
-a "files" array — one entry per .txt file, each with its "name" and its "words" count — ordered
-by name, plus a "total_words" holding the sum of every word counted. It is indented by two
-spaces and ends with a trailing newline.
+Write it in D under `/app/bdd/src` (there's a stub). Phobos and the D runtime only, and the box's Phobos has std.numeric taken out. The sign-off flow keeps the regular .d files directly in that directory, builds them from `/app/bdd` with `ldc2 -O2 -of=/app/bdd/bddcount /app/bdd/src/*.d` on the ldc2 1.41.0 in this box, and runs the binary from `/app/bdd` against a server started for that run, with its own address, port, command limit and busy timing. It sees the block you can see now, and it sees a block you haven't, wider and with far more inputs, inside the bounds the README gives.
 
-Keep it driveable the way CI drives it: the program stays at /app/src/summarize.py and is run as
-`python3 /app/src/summarize.py --data <dir> --out <file>`. CI points it at directories other
-than the one shipped here.
+A run has 90 seconds of wall time and 4 GiB of address space, and the binary can't start other programs. Every count at every checkpoint has to be exactly right on both blocks, with no output missing and none reported that isn't present at that revision.

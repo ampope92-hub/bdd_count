@@ -1,0 +1,30 @@
+services:
+  # The counter's container. The harness supplies its build and its keepalive command; this file
+  # only says where the export port is.
+  main:
+    environment:
+      SYNTH_HOST: "127.0.0.1"
+      SYNTH_PORT: "7300"
+
+  # The synthesis server's export port, in its own image. Every service shares one network
+  # namespace, so the counter reaches it on the loopback address.
+  synth:
+    build:
+      context: .
+      dockerfile: Dockerfile.synth
+    restart: unless-stopped
+    command:
+      - "python3"
+      - "/srv/synth/synth_server.py"
+      - "--data"
+      - "/srv/synth/block.json"
+      - "--host"
+      - "127.0.0.1"
+      - "--port"
+      - "7300"
+      - "--limit"
+      - "12"
+      - "--busy-every"
+      - "9"
+      - "--busy-ms"
+      - "400"

@@ -1,100 +1,78 @@
-"""Verifier for the skeleton task.
-
-Two things are graded independently. The report has to match the approved bytes for the
-shipped inputs, and the agent's own program has to reproduce those bytes when re-run
-against inputs it has never seen. The second is what stops a hand-written report from
-passing: the artifact alone is cheap to fake, re-deriving it on held-out data is not.
-
-Replace the whole file for a real task, but keep the shape: golden bytes, a held-out
-re-run, and a determinism check.
-"""
-
-import hashlib
-import json
-import shutil
-import subprocess
-from pathlib import Path
+"""Grades the two runs test.sh made: the counter compiled from the collected D, run once against
+the shipped block served on another address and port and once against a held-back block. Nothing
+here counts anything: every reported line is compared with the exact counts the block's generator
+(solution/generate_block.py) recorded, baked into this image and closed to the build user."""
+import os
+import re
 
 import pytest
 
-APP = Path("/app")
-SRC = APP / "src" / "summarize.py"
-REPORT = APP / "out" / "report.json"
-DATA = APP / "data"
-HOLDOUT = Path("/tests/holdout")
-
-# Scratch space owned by the sandbox user; see tests/Dockerfile.
-WORK_OUT = Path("/work/out")
-
-SANDBOX_UID = 12000
-DROP_PRIVILEGES = [
-    "setpriv",
-    f"--reuid={SANDBOX_UID}",
-    f"--regid={SANDBOX_UID}",
-    "--clear-groups",
-]
-
-# SHA-256 of the report each input set must produce. Generated from solution/src.
-EXPECTED_PRIMARY = "60fec4718722649de61a0a56094fa49cf19597bd942244b27c77cea81352ce57"
-EXPECTED_HOLDOUT = {"h1": "a3cca7560ba22f8ec8e43ead53cee7566e713086e19c21ef42bd785bc7da77ba"}
+RUN = "/opt/run"
+TRUTH = "/opt/truth"
+BLOCKS = ["sample", "hidden"]
+TIME_LIMIT = 90.0
+COUNT = re.compile(r"0|[1-9][0-9]*")
 
 
-def sha256(path):
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+def read_text(path):
+    """Opens without following a symlink, so a link planted at the path is refused."""
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    with os.fdopen(fd, "rb") as fh:
+        return fh.read().decode("ascii", "replace")
 
 
-def run_agent_program(data_dir, out_path):
-    """Runs the agent's own program, unprivileged, against a directory of our choosing."""
-    return subprocess.run(
-        DROP_PRIVILEGES
-        + ["python3", str(SRC), "--data", str(data_dir), "--out", str(out_path)],
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
+def golden(name):
+    want = {}
+    for line in read_text(os.path.join(TRUTH, "golden", name + ".txt")).splitlines():
+        rev, out, count = line.split()
+        want[(rev, out)] = count
+    return want
 
 
-def test_report_exists():
-    """The declared artifact was produced at the documented path."""
-    assert REPORT.is_file(), f"{REPORT} was not created"
+def report(name):
+    """The run's stdout as {(revision, output): count}, after checking the run ended inside the
+    time limit and every line has the three fields the README gives. A final newline is optional
+    and blank lines are not allowed."""
+    code, t0, t1 = read_text(os.path.join(RUN, f"status_{name}.txt")).split()
+    elapsed = float(t1) - float(t0)
+    assert elapsed < TIME_LIMIT, f"the {name} run was still going at the {TIME_LIMIT:.0f} s limit"
+    text = read_text(os.path.join(RUN, f"report_{name}.txt"))
+    assert text.strip(), f"the {name} run printed nothing (exit status {code})"
+    got = {}
+    for n, line in enumerate(text.removesuffix("\n").split("\n"), 1):
+        f = line.split(" ")
+        assert len(f) == 3 and all(f), f"{name} line {n} is not '<revision> <output> <count>': {line[:120]!r}"
+        rev, out, count = f
+        assert COUNT.fullmatch(count), f"{name} line {n}: {count[:60]!r} is not a plain decimal count"
+        assert (rev, out) not in got, f"{name}: output {out} reported twice at revision {rev}"
+        got[(rev, out)] = count
+    return got
 
 
-def test_report_is_valid_json():
-    """The report parses and carries the documented top-level keys."""
-    data = json.loads(REPORT.read_text())
-    assert set(data) == {"files", "total_words"}, f"unexpected top-level keys: {sorted(data)}"
+def test_counter_built():
+    """The collected .d files compiled with ldc2 into /app/bdd/bddcount."""
+    assert read_text(os.path.join(RUN, "build_check.txt")).strip() == "ok", \
+        "the collected D did not compile (see the ldc2 output in the log)"
 
 
-def test_report_matches_approved_bytes():
-    """The report is byte-identical to the approved output for the shipped inputs."""
-    actual = sha256(REPORT)
-    assert actual == EXPECTED_PRIMARY, (
-        f"report.json does not match the approved bytes\n"
-        f"  expected sha256 {EXPECTED_PRIMARY}\n  actual   sha256 {actual}"
-    )
+@pytest.mark.parametrize("name", BLOCKS)
+def test_every_checkpoint_lists_its_outputs(name):
+    """Within 90 s the run printed one line for every output present at every checkpoint and
+    none for outputs that are absent there (dropped, or not yet added)."""
+    got, want = report(name), golden(name)
+    missing = sorted(set(want) - set(got))
+    extra = sorted(set(got) - set(want))
+    assert not missing and not extra, \
+        f"{name}: missing {missing[:8]} ({len(missing)}), not present at that revision {extra[:8]} ({len(extra)})"
 
 
-@pytest.mark.parametrize("name", sorted(EXPECTED_HOLDOUT))
-def test_holdout_reproduces_approved_bytes(name):
-    """Re-running the agent's program on unseen inputs reproduces the approved bytes.
-
-    This is the anti-cheat axis: it proves the report on disk was generated by the
-    program rather than written by hand or pinned to the shipped fixtures.
-    """
-    out = WORK_OUT / f"{name}.json"
-    result = run_agent_program(HOLDOUT / name, out)
-    assert result.returncode == 0, f"program failed on held-out set {name}:\n{result.stderr}"
-
-    actual = sha256(out)
-    assert actual == EXPECTED_HOLDOUT[name], (
-        f"held-out set {name} did not reproduce the approved bytes\n"
-        f"  expected sha256 {EXPECTED_HOLDOUT[name]}\n  actual   sha256 {actual}"
-    )
-
-
-def test_output_is_deterministic():
-    """Two runs over the same inputs produce identical bytes."""
-    first, second = WORK_OUT / "det-1.json", WORK_OUT / "det-2.json"
-    for out in (first, second):
-        assert run_agent_program(DATA, out).returncode == 0, "program failed on shipped inputs"
-    assert sha256(first) == sha256(second), "program output is not deterministic"
+@pytest.mark.parametrize("name", BLOCKS)
+def test_every_count_is_exact(name):
+    """Every reported count equals the exact number of input assignments that drive that
+    output to 1 at that revision."""
+    got, want = report(name), golden(name)
+    wrong = [(k, got[k], v) for k, v in sorted(want.items()) if k in got and got[k] != v]
+    absent = [k for k in want if k not in got]
+    assert not absent, f"{name}: {len(absent)} (revision, output) pairs have no count, e.g. {absent[:4]}"
+    assert not wrong, f"{name}: {len(wrong)} counts wrong, e.g. " + "; ".join(
+        f"rev {k[0]} {k[1]}: got {g[:40]} want {w[:40]}" for k, g, w in wrong[:4])

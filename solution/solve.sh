@@ -1,20 +1,18 @@
 #!/bin/bash
-# Oracle solution.
+# Oracle. Puts the reference counter in place and compiles it the way the grader does.
 #
-# Document what was actually wrong and how the fix was derived — a reviewer reads this
-# to judge whether the task is solvable by reasoning rather than by guessing:
-#
-#   src/summarize.py   Three defects. Entries came back in filesystem order instead of
-#                      sorted by name; total_words counted files rather than words; and
-#                      the report was written without its trailing newline.
-#
-# Harbor mounts solution/ at /solution/ and runs this script as the oracle agent.
+# bddcount.d reads the netlist and the ECO lines off the export port (waiting out BUSY answers
+# and reconnecting when a connection reaches its command limit), rebuilds the block at every
+# checkpoint with the highest revision at or below it winning for each net and output, and counts
+# every output exactly on reduced ordered BDDs. The variable order comes from the checkpoint's
+# circuit: outputs from the smallest fan-in cone up, each walked depth first, an input placed the
+# first time the walk reaches it, so operand bits that meet in one adder or comparator cell sit
+# next to each other. The port list's declaration order is never used.
+# generate_block.py builds every block and its exact counts.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-cp "$HERE/src/summarize.py" /app/src/summarize.py
-
-python3 /app/src/summarize.py --data /app/data --out /app/out/report.json
-
-sha256sum /app/out/report.json
+rm -f /app/bdd/src/*.d
+cp "$HERE/bddcount.d" /app/bdd/src/bddcount.d
+cd /app/bdd
+ldc2 -O2 -of=/app/bdd/bddcount /app/bdd/src/*.d

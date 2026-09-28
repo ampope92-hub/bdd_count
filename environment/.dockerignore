@@ -1,4 +1,7 @@
-out/
-__pycache__/
 .git
+.gitignore
+**/__pycache__/
+**/*.pyc
 *.log
+jobs/
+*.Zone.Identifier
