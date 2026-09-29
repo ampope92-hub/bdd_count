@@ -44,6 +44,7 @@ SIZES = {
 # one checkpoint, then ECO revisions and ECO lines.
 MAX_INPUTS, MAX_GATES, MAX_OUTPUTS = 236, 3196, 127
 MAX_REVS, MAX_ECO = 14, 43
+MAX_REV_ID = 1 << 63  # the README's ceiling on a revision number; long.max sits one below it
 
 
 class Block:
@@ -260,6 +261,7 @@ def extra_orders(B, eco, rng, eco_gate, keep):
         if e[1] + 1 not in e and e[1] + 1 < e[2]:
             break
     e = e[:2] + [e[1] + 1] + e[2:]
+    e[-1] = MAX_REV_ID - 1  # the held-back block's final order attains the README's revision bound
     pool = [n for n in B.made if B.gates[n][0] in TWO and n not in keep]
     cur = {}
     outs = dict(B.outputs)
@@ -583,8 +585,10 @@ def make(seed, kind):
               len({e[0] for e in eco}), len(eco_lines))
     want = (MAX_INPUTS, MAX_GATES, MAX_OUTPUTS, MAX_REVS, MAX_ECO)
     checks["inside the README bounds"] = all(x <= y for x, y in zip(bounds, want))
+    checks["every revision id stays under the README's 2**63 bound"] = all(e[0] < MAX_REV_ID for e in eco)
     if P.get("extra"):
         checks["the held-back block reaches every README bound"] = bounds == want
+        checks["the held-back block attains the README's revision bound"] = final == MAX_REV_ID - 1
     return doc, counts, checks, meta, base_gates
 
 

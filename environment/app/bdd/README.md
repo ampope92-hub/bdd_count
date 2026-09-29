@@ -52,7 +52,7 @@ tagged with the revision of the order it belongs to:
     REV <r> OUTPUT <name> <net>            output <name> is driven by <net>, added if new
     REV <r> DROP <name>                    output <name> is removed
 
-Revisions are positive integers. One order never names the same net or output twice. Revision 0
+Revisions are positive integers below 2^63. One order never names the same net or output twice. Revision 0
 is the netlist as synthesized. The block at revision R is the netlist with, for every net and
 every output name, the line of the highest revision at or below R that names it applied on top;
 lines from revisions above R do not apply. The ECO pages list lines in the order the change

@@ -45,6 +45,16 @@ as_runner() {
   setpriv --clear-groups --no-new-privs --reuid runner --regid runner "$@"
 }
 
+# The held-back run reaches its server by name. README.md says SYNTH_HOST can be a host name or
+# an address.
+SYNTH_BY_NAME=synth2.fab.internal
+printf '%s\t%s\n' 127.0.0.5 "$SYNTH_BY_NAME" >> /etc/hosts
+if ! /usr/bin/getent hosts "$SYNTH_BY_NAME" >/dev/null 2>&1; then
+  echo "FATAL: $SYNTH_BY_NAME does not resolve in this container"
+  echo 0 > /logs/verifier/reward.txt
+  exit 0
+fi
+
 # Close the verifier's own code, the blocks, the counts, the server and the reward directory to
 # the build user before anything untrusted runs, and prove it. `ls` needs read permission on the
 # directory itself, which is the right probe.
@@ -165,7 +175,7 @@ if [ -x /app/bdd/bddcount ]; then
 
   echo "=== a block the agent has never seen ==="
   if start_synth hidden 127.0.0.5 7634 6 5 300; then
-    run_tool hidden 127.0.0.5 7634
+    run_tool hidden "$SYNTH_BY_NAME" 7634
   fi
   stop_synth
 fi
