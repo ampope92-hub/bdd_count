@@ -74,9 +74,10 @@ Anything on standard error is ignored.
 ## Blocks
 
 The shipped server holds a small block (20 inputs). The flow runs this counter on every block it
-signs off, and those stay inside these bounds: at most 236 primary inputs, 3196 gates and 127
-outputs at every checkpoint, and ECO lines from at most 14 revisions, 43 lines in all. Blocks
-are datapath slices: adders and subtracters feeding result muxes, magnitude and equality
+signs off, and those stay inside these bounds: at most 236 primary inputs and 127 outputs at any
+checkpoint. As synthesized a block has at most 3188 gates; with its ECO lines applied a block has
+at most 3196 gates at any checkpoint. ECO lines come from at most 14 revisions, 43 lines in all.
+Blocks are datapath slices: adders and subtracters feeding result muxes, magnitude and equality
 comparators, parity and zero trees, priority encoders.
 
 On the sign-off hosts a run gets 2 cores, 90 seconds of wall time and 4 GiB of address space, and
