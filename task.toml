@@ -9,8 +9,8 @@ artifacts = [
 [metadata]
 author_name = "anonymous"
 author_email = "anonymous"
-category = "Hardware"
-subcategory = "RTL"
+category = "Software"
+subcategory = "Algorithms"
 tags = ["d", "bdd", "model-counting", "gate-level", "eco", "tcp"]
 languages = ["d"]
 difficulty = "advanced"
