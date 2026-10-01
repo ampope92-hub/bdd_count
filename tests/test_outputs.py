@@ -1,7 +1,10 @@
 """Grades the two runs test.sh made: the counter compiled from the collected D, run once against
 the shipped block served on another address and port and once against a held-back block. Nothing
 here counts anything: every reported line is compared with the exact counts the block's generator
-(solution/generate_block.py) recorded, baked into this image and closed to the build user."""
+(solution/generate_block.py, a Python BDD package in the generator's own bit-sliced order) recorded.
+golden_ref holds a second derivation, written separately: the report solution/bddcount.d (a D BDD
+package, variable order read from the circuit) printed against each block's server, recorded
+beside the generator's counts. Both are baked into this image and closed to the build user."""
 import os
 import re
 
@@ -21,9 +24,9 @@ def read_text(path):
         return fh.read().decode("ascii", "replace")
 
 
-def golden(name):
+def golden(name, which="golden"):
     want = {}
-    for line in read_text(os.path.join(TRUTH, "golden", name + ".txt")).splitlines():
+    for line in read_text(os.path.join(TRUTH, which, name + ".txt")).splitlines():
         rev, out, count = line.split()
         want[(rev, out)] = count
     return want
@@ -47,6 +50,13 @@ def report(name):
         assert (rev, out) not in got, f"{name}: output {out} reported twice at revision {rev}"
         got[(rev, out)] = count
     return got
+
+
+@pytest.mark.parametrize("name", BLOCKS)
+def test_two_references_agree(name):
+    """The generator's counts and the separately written reference's report are the same set of
+    (revision, output, count) lines, so neither derivation alone decides a grade."""
+    assert golden(name) == golden(name, "golden_ref"), f"{name}: the two derivations differ"
 
 
 def test_counter_built():

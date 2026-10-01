@@ -97,7 +97,7 @@ if [ "$(ls /app/bdd/src | wc -l)" -eq 0 ]; then
   echo failed > /opt/run/build_check.txt
 else
   close_interp
-  setsid /usr/bin/timeout --signal=KILL 900 \
+  setsid /usr/bin/timeout --signal=KILL 1200 \
     setpriv --clear-groups --no-new-privs --reuid runner --regid runner \
     env -i -C /app/bdd HOME=/home/runner PATH=/opt/ldc/bin:/usr/bin:/bin \
       /bin/bash -c "exec $LDC -O2 -of=/app/bdd/bddcount \"\$@\"" ldc2 /app/bdd/src/*.d &
@@ -174,7 +174,7 @@ if [ -x /app/bdd/bddcount ]; then
   stop_synth
 
   echo "=== a block the agent has never seen ==="
-  if start_synth hidden 127.0.0.5 7634 6 5 300; then
+  if start_synth hidden 127.0.0.5 7634 1 5 1000; then
     run_tool hidden "$SYNTH_BY_NAME" 7634
   fi
   stop_synth

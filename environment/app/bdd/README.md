@@ -24,11 +24,11 @@ Commands and answers:
     other        ERR <reason>
 
 The server is shared with the rest of the flow. It can answer any command with `BUSY <ms>`
-instead; that command was not carried out, and the server keeps answering BUSY (with the time
-still left) until that many milliseconds have passed. One connection gets answers to at most l
-commands (the LIMIT in its greeting), BUSY and ERR answers included. The command after that gets
-`BYE limit` and the connection is closed. There is no limit on the number of connections. A page
-reads the same on every connection.
+instead, ms at most 1000; that command was not carried out, and until that many milliseconds
+have passed every command gets BUSY again with the time still left. One connection gets answers
+to at most l commands (the LIMIT in its greeting, as low as 1), BUSY and ERR answers included.
+The command after that gets `BYE limit` and the connection is closed. There is no limit on the
+number of connections. A page reads the same on every connection.
 
 ## Netlist lines
 

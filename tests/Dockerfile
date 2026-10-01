@@ -53,6 +53,7 @@ RUN mkdir -p /app/bdd && chown -R runner:runner /app && chmod 1755 /app
 # reaches.
 COPY data /opt/truth
 COPY golden /opt/truth/golden
+COPY golden_ref /opt/truth/golden_ref
 COPY synth /opt/synth
 RUN chmod 700 /opt/truth /opt/synth
 
